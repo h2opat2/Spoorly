@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1" creator="https://mapy.com/">
+	<trk>
+		<name>Etapa_1_den_02.gpx</name>
+		<trkseg>
+			<trkpt lat="50.232575" lon="12.234399">
+				<ele>501.000000</ele>
+				<time>2025-08-03T06:34:17Z</time>
+			</trkpt>
+			<trkpt lat="50.232319" lon="12.234242">
+				<ele>501.0000000</ele>
+				<time>2025-08-03T06:34:18Z</time>
+			</trkpt>
+			<trkpt lat="50.232277" lon="12.234204">
+				<ele>501.000000</ele>
+				<time>2025-08-03T06:34:19Z</time>
+			</trkpt>
+			<trkpt lat="50.232219" lon="12.234188">
+				<ele>501.000000</ele>
+				<time>2025-08-03T06:34:20Z</time>
+			</trkpt>
+        </trkseg>
+    </trk>
+</gpx>
