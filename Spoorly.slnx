@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Spoorly.Core/Spoorly.Core.csproj" />
     <Project Path="src/Spoorly.Console/Spoorly.Console.csproj" />
   </Folder>
 </Solution>
