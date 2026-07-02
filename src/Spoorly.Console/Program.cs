@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using Spoorly.Core.Analysis;
+using Spoorly.Core.Geo;
 using Spoorly.Core.Io;
 using Spoorly.Core.Model;
 
@@ -10,6 +12,8 @@ PrintTracks(small);
 // --- velký, reálný soubor ---
 Gpx big = Load("../../data/etapa01_den02.gpx", "Reálný soubor");
 Console.WriteLine($"Celkem bodů: {big.Tracks.Sum(t => t.TrackSegments.Sum(s => s.Points.Count))}");
+PrintStats(big);
+PrintProfile(big.Tracks[0]);
 
 // Načte soubor, změří dobu a vypíše ji. Vrací načtená data.
 static Gpx Load(string path, string label)
@@ -19,6 +23,38 @@ static Gpx Load(string path, string label)
     sw.Stop();
     Console.WriteLine($"{label}: {sw.Elapsed.TotalMilliseconds:F3} ms");
     return gpx;
+}
+
+// Spočítá a vypíše statistiky trasy – rovinnou (2D) i skloněnou (3D) vzdálenost.
+static void PrintStats(Gpx gpx)
+{
+    var flat = TrackStatisticsCalculator.Compute(gpx);
+    var slope = TrackStatisticsCalculator.Compute(gpx, (a, b) => Distance.Slope(a, b));
+
+    Console.WriteLine($"Délka (2D):   {flat.Distance / 1000:F2} km");
+    Console.WriteLine($"Délka (3D):   {slope.Distance / 1000:F2} km");
+    Console.WriteLine($"Převýšení:    +{slope.ElevationGain:F0} m / -{slope.ElevationLoss:F0} m");
+    Console.WriteLine($"Výška:        {slope.MinElevation:F0} – {slope.MaxElevation:F0} m");
+    if (slope.Duration is { } duration)
+        Console.WriteLine($"Doba:         {duration:hh\\:mm\\:ss}");
+    if (slope.AverageSpeed is { } speed)
+        Console.WriteLine($"Prům. rychlost: {speed * 3.6:F1} km/h");
+}
+
+// Postaví profil trasy a ukáže, že jeho celková délka sedí,
+// plus vzorek bodů zhruba po 5 km (osa X pro výškový profil).
+static void PrintProfile(Track track)
+{
+    var profile = TrackProfileBuilder.Build(track);
+    Console.WriteLine($"Profil: {profile.Points.Count} bodů, délka {profile.TotalDistance / 1000:F2} km");
+
+    var nextMark = 0.0;
+    foreach (var sample in profile.Points)
+    {
+        if (sample.Distance < nextMark) continue;
+        Console.WriteLine($"  {sample.Distance / 1000,5:F1} km  ele={sample.Point.Elevation:F0} m");
+        nextMark += 1000;
+    }
 }
 
 static void PrintTracks(Gpx gpx)
