@@ -23,6 +23,28 @@ rozhodnutí a co je další krok."*
 
 ---
 
+## [2026-07-03] — Automatická připomínka deníku po commitu
+
+**Fáze:** 1 — C# do hloubky přes GPX parsing
+**Uděláno:** Přidán `.claude/settings.json` s `PostToolUse` hookem (matcher `Bash`,
+filtr `if: Bash(git commit*)`), který po commitu vloží Claudovi připomínku, ať doplní
+tenhle deník. Verzovaný v repu, takže platí pro každého, kdo v projektu jede Claude Code.
+**Rozhodnutí:**
+- Zvolen **připomínkový** hook (Claude napíše smysluplný záznam), ne mechanický
+  `post-commit` git hook — ten by uměl jen holý řádek hash + zpráva, bez rozhodnutí
+  a kontextu, což je přesně to nejcennější v deníku.
+- **Loop-guard:** když zpráva commitu obsahuje „deník/denik/DENIK", hook se přeskočí —
+  aby commit samotné aktualizace deníku nevyvolal další připomínku donekonečna.
+- Scope = projektový `.claude/settings.json` (ne `.local`), aby konvence cestovala s repem.
+**Naučeno:** Hook je jen shellový příkaz — sám neumí napsat obsah vyžadující úvahu;
+`PostToolUse` ale umí vrátit `hookSpecificOutput.additionalContext` a tím „šťouchnout"
+model, aby to dopsal. Bash permission-matching pro `if` filtr rozebírá i složené příkazy.
+**Otevřené otázky / další krok:** Připomínka se spustí u každého commitu — pokud to bude
+moc, zvážit omezení jen na commity měnící `src/`. Zpět k Fázi 1: testovací projekt (xUnit).
+**Commity:** —
+
+---
+
 ## [2026-07-03] — Založení lokálního kontextu v repu
 
 **Fáze:** 1 — C# do hloubky přes GPX parsing
