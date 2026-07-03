@@ -11,6 +11,16 @@
             "statusMessage": "Připomínka deníku"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // empty' | grep -qF 'docs/SKRIPTA.md' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"Právě jsi upravil docs/SKRIPTA.md. Pokud jsi přidal NOVOU kapitolu, přidej do docs/DENIK.md nový záznam s jejím názvem (název kapitoly + krátce čeho se týká).\"}}'",
+            "statusMessage": "Skripta → deník"
+          }
+        ]
       }
     ]
   }
