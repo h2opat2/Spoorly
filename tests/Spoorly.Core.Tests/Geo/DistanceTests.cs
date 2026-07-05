@@ -43,6 +43,66 @@ public class DistanceTests
         var result = Distance.Equirectangular(point1, point2);
         Assert.Equal(expected, result, precision: 1);
     }
+
+    [Fact]
+    public void Slope_Pythagoras_ReturnSlantDistance()
+    {
+        var point1 = new TrackPoint
+        {
+            Longitude = 10,
+            Latitude = 10,
+            Elevation = 0
+        };
+        var point2 = new TrackPoint
+        {
+            Longitude = 10,
+            Latitude = 10,
+            Elevation = 30
+        };
+
+        var result = Distance.Slope(point1, point2, (a, b) => 40.0);
+
+        Assert.Equal(50.0, result, tolerance: 0);
+    }
+
+    [Fact]
+    public void Slope_NullElevation_ReturnHorizontalDistance()
+    {
+        var point1 = new TrackPoint
+        {
+            Longitude = 10,
+            Latitude = 10,
+            Elevation = 0
+        };
+        var point2 = new TrackPoint
+        {
+            Longitude = 10,
+            Latitude = 10
+        };
+
+        var result = Distance.Slope(point1, point2, (a, b) => 40.0);
+
+        Assert.Equal(40.0, result, tolerance: 0);
+    }
+
+    [Fact]
+    public void Slope_NullElevationBoth_ReturnHorizontalDistance()
+    {
+        var point1 = new TrackPoint
+        {
+            Longitude = 10,
+            Latitude = 10
+        };
+        var point2 = new TrackPoint
+        {
+            Longitude = 10,
+            Latitude = 10
+        };
+
+        var result = Distance.Slope(point1, point2, (a, b) => 40.0);
+
+        Assert.Equal(40.0, result, tolerance: 0);
+    }
 }
 
 
