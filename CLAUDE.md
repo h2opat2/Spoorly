@@ -79,4 +79,5 @@ Na spadnutí: testovací projekt (xUnit), případně přesnější metody vzdá
 ## Kam si psát průběh
 
 Souhrny sessions, rozhodnutí a další kroky patří do `docs/DENIK.md` (verzováno v gitu,
-čtou ho oba nástroje). Na konci session ho aktualizuj.
+čtou ho oba nástroje). Na konci session ho aktualizuj. Zápisy drž **stručné a bodové** —
+jen hlavní myšlenky (viz „Formát záznamu" v deníku).

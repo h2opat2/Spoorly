@@ -7,7 +7,7 @@
           {
             "type": "command",
             "if": "Bash(git commit*)",
-            "command": "jq -r '.tool_input.command' | grep -qiE 'deník|denik|DENIK' && exit 0; git diff-tree --no-commit-id --name-only -r HEAD 2>/dev/null | grep -qE '^(src|tests)/' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"Právě proběhl git commit měnící src/ nebo tests/. Aktualizuj docs/DENIK.md — přidej nahoru nový záznam podle formátu v souboru: Fáze / Uděláno / Rozhodnutí / Naučeno / Otevřené otázky a další krok / Commity.\"}}'",
+            "command": "jq -r '.tool_input.command' | grep -qiE 'deník|denik|DENIK' && exit 0; git diff-tree --no-commit-id --name-only -r HEAD 2>/dev/null | grep -qE '^(src|tests)/' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"Právě proběhl git commit měnící src/ nebo tests/. Aktualizuj docs/DENIK.md — přidej nahoru STRUČNÝ bodový záznam podle formátu v souboru (jen hlavní myšlenky, 3–6 řádků).\"}}'",
             "statusMessage": "Připomínka deníku"
           }
         ]

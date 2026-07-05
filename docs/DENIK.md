@@ -11,14 +11,17 @@ rozhodnutí a co je další krok."*
 
 ## Formát záznamu
 
+Drž zápis **stručný a bodový** — jen hlavní myšlenky, ne odstavce (ideálně 3–6 řádků).
+Pole, ke kterému není co říct, vynech.
+
 ```
 ## [RRRR-MM-DD] — krátký titulek
 **Fáze:** <číslo a název>
-**Uděláno:** co konkrétně vzniklo/změnilo se
-**Rozhodnutí:** volby a *proč* (tohle je nejcennější — ať to future-Honza pochopí)
-**Naučeno:** koncept/pattern, který teď dává větší smysl
-**Otevřené otázky / další krok:** co dál
-**Commity:** hashe nebo stručně
+- **Uděláno:** co vzniklo (bodově)
+- **Rozhodnutí:** klíčová volba + proč (jen to podstatné)
+- **Naučeno:** hlavní koncept
+- **Další krok:** co dál
+- **Commity:** hashe
 ```
 
 ---
