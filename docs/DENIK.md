@@ -28,23 +28,12 @@ Pole, ke kterému není co říct, vynech.
 
 ## [2026-07-05] — Zahájení fáze testování: xUnit + první testy Distance
 
-**Fáze:** Testování (Fáze A dle učebního plánu) — pořád v rámci Fáze 1 (doménová logika)
-**Uděláno:** Vznikl učební text `docs/SKRIPTA.md` (kapitola Testování). Založen testovací
-projekt `tests/Spoorly.Core.Tests` (net10.0, xUnit 2.9.3), reference na `Spoorly.Core`,
-přidán do `Spoorly.slnx`. První testy `DistanceTests`: `Equirectangular` pro shodný bod
-(→ 0) a `[Theory]` se dvěma ručně ověřenými známými vzdálenostmi.
-**Rozhodnutí:**
-- xUnit v2 (stabilní), NSubstitute zatím ne — čisté funkce nepotřebují test doubles.
-- Tolerance u `double` volena **vědomě**: `precision: 1` místo `0`, ať sedí s přesností
-  zadaných `expected` (ne „přesnost na desetinu, ověřuji na jednotky").
-- Oddělené commity: testovací infrastruktura zvlášť od formátovacího úklidu `dotnet format`.
-**Naučeno:** Porovnávání `double` nikdy přes `==`, `precision` = počet desetinných míst.
-Minimální fixture (nastav jen to, co test potřebuje — `Elevation` u 2D výpočtu je šum).
-Nezávislá kotva pro `expected` (ruční výpočet z geodetické domény) dělá test cenným.
-**Otevřené otázky / další krok:** Doplnit zbytek `Distance` — nejdřív `Slope` (fallback
-bez výšky, Pythagoras s výškou). Pak `TrackStatisticsCalculator` (vč. diskuse moving vs
-elapsed time u `Merge`), `TrackProfileBuilder`, a integration test `GpxReader` nad fixture.
-**Commity:** `800680b` (skripta), `baedabb` (test projekt + DistanceTests), `f7c3d9c` (format)
+**Fáze:** Testování (Fáze A) — v rámci Fáze 1
+- **Uděláno:** `docs/SKRIPTA.md` (kap. Testování); test projekt `tests/Spoorly.Core.Tests` (xUnit 2.9.3) + `DistanceTests` pro `Equirectangular`.
+- **Rozhodnutí:** xUnit v2, bez NSubstitute (čisté funkce); `precision: 1` (tolerance dle přesnosti `expected`).
+- **Naučeno:** `double` neporovnávat přes `==`; minimální fixture; nezávislá kotva pro `expected`.
+- **Další krok:** `Distance.Slope` → `TrackStatisticsCalculator` (moving vs elapsed) → `TrackProfileBuilder` → `GpxReader` (integration).
+- **Commity:** `800680b`, `baedabb`, `f7c3d9c`
 
 ---
 
