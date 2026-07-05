@@ -14,7 +14,7 @@ public static class GpxReader
         return new Gpx
         {
             Creator = root.Attribute("creator")?.Value,
-            Tracks  = root.Elements(Ns + "trk").Select(ParseTrack).ToList(),
+            Tracks = root.Elements(Ns + "trk").Select(ParseTrack).ToList(),
         };
     }
 
