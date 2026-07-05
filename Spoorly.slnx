@@ -3,4 +3,7 @@
     <Project Path="src/Spoorly.Core/Spoorly.Core.csproj" />
     <Project Path="src/Spoorly.Console/Spoorly.Console.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Spoorly.Core.Tests/Spoorly.Core.Tests.csproj" />
+  </Folder>
 </Solution>
