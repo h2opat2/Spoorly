@@ -1,5 +1,7 @@
 # Spoorly
 
+*🇨🇿 Čeština · [🇬🇧 English](README.en.md)*
+
 > Geoprostorový tracker GPS aktivit (běh, cyklo, turistika) psaný v moderním .NET.
 
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
