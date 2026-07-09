@@ -10,6 +10,7 @@ Souvisí s [DENIK.md](DENIK.md) (co jsme kdy udělali) — skripta jsou *proč a
 
 - [1. Testování (xUnit)](#1-testování-xunit)
 - [2. OOP: rozhraní a strategy pattern (`IActivityParser`)](#2-oop-rozhraní-a-strategy-pattern-iactivityparser)
+- [3. Perzistence: EF Core + PostgreSQL / PostGIS](#3-perzistence-ef-core--postgresql--postgis)
 
 ---
 
@@ -352,3 +353,234 @@ Tohle je jádro Fáze 2 — nejsou to detaily, ale volby, které utvářejí API
 - Refactoring Guru — Strategy pattern (jazykově neutrální, s C# příklady): `refactoring.guru/design-patterns/strategy`.
 - Kniha: Robert C. Martin — *Agile Principles, Patterns, and Practices in C#* (dependency inversion, ISP).
 - Pozor na over-engineering: Martin Fowler, „Yagni" — `martinfowler.com/bliki/Yagni.html`.
+
+---
+
+# 3. Perzistence: EF Core + PostgreSQL / PostGIS
+
+> Tahle kapitola je delší schválně — je to první krok mimo čistou doménu do
+> infrastruktury a zároveň nejcennější kus pro reálné uplatnění v GIS. Ber to jako
+> mapu, ne jako něco k přečtení na jeden zátah.
+
+## 3.1 Kam kapitola míří
+
+Dosud žije všechno v paměti: načteš `.gpx`, spočítáš metriky, vypíšeš, konec. Ve Fázi 3
+přidáme **trvalé uložení** — aktivity půjdou uložit do databáze a číst zpět. Nové vrstvy:
+
+- **PostgreSQL** — relační databáze,
+- **PostGIS** — její geoprostorové rozšíření (typy `geometry`/`geography`, prostorové dotazy, indexy),
+- **EF Core** — ORM, který mapuje C# objekty na tabulky a překládá LINQ na SQL,
+- **Docker** — poprvé, zatím jen pro rozjetí databáze.
+
+Proč zrovna tohle a proč to stojí za důkladnost: kombinace **.NET + PostGIS** je v praxi
+běžná (backend GIS aplikací, tracking, logistika) a znalost prostorové databáze je přesně
+ten průnik tvojí geodetické minulosti a nové .NET role. Tady se ty dva světy potkávají.
+
+## 3.2 Proč databáze, a proč relační / Postgres
+
+Soubor `.gpx` je fajn pro *výměnu* dat, ale mizerný pro *dotazování* („dej mi všechny běhy
+delší než 10 km z června"). Databáze přidává: dotazy, indexy, transakce (ACID), souběžný
+přístup, integritu (cizí klíče). Relační model sedí na tvá data, protože mají jasnou
+strukturu a vztahy (aktivita → trasy → segmenty → body).
+
+**Proč Postgres** (a ne SQLite/SQL Server): je open-source, zdarma, robustní a hlavně má
+**PostGIS** — nejlepší open-source geoprostorové rozšíření, jaké existuje. Pro GIS je to
+jasná volba a je to i to, co briefy projektu (Docker → Hetzner) předpokládají.
+
+## 3.3 PostGIS: geoprostorová vrstva
+
+PostGIS přidává Postgresu geoprostorové **datové typy**, **funkce** a **indexy**. Místo
+abys ukládal `lat`/`lon` jako dva `double` sloupce, uložíš celý bod nebo trasu jako
+jednu **geometrii** a databáze umí počítat vzdálenosti, průniky, obálky, „co je do 5 km".
+
+Čtyři pojmy, které musíš mít v malíku (a u každého je chyták):
+
+1. **`geometry` vs `geography`** — dva typy, zásadní rozdíl:
+   - `geometry` = **rovinná** matematika (kartézská). Rychlá, ale vzdálenost ve stupních,
+     pokud jsou data v zeměpisných souřadnicích → pro délku trasy potřebuješ projekci.
+   - `geography` = počítá **na elipsoidu** (WGS84). Vzdálenosti rovnou v **metrech**,
+     korektní na velké vzdálenosti, ale pomalejší a podporuje míň funkcí.
+   - Pro GPS tracky je `geography` lákavé (metry zdarma), ale běžnější je `geometry`
+     se SRID 4326 + funkce jako `ST_DistanceSphere`, nebo projekce do metrického CRS.
+     **Tohle je tvoje doména** — rozhodneš líp než já (viz [3.9](#39-kdo-počítá-vzdálenost-doména-vs-postgis)).
+2. **SRID** — identifikátor souřadnicového systému. **4326** = WGS84 (lat/lon z GPS).
+   Každá geometrie ho nese; míchat SRID = chyba nebo nesmysl ve výsledku.
+3. **Pořadí souřadnic — klasický chyták:** PostGIS i NetTopologySuite pracují v pořadí
+   **(X = longitude, Y = latitude)**. Tvůj `TrackPoint` má `Latitude` i `Longitude`, takže
+   při mapování `Point(x: lon, y: lat)` — prohodit je znamená mít trasu v Antarktidě.
+4. **Prostorový index (GiST)** — bez něj je „najdi vše do 5 km" plný scan. GiST index nad
+   geometrickým sloupcem to zrychlí o řády; PostGIS ho běžně používá.
+
+## 3.4 EF Core v kostce
+
+**ORM** (Object-Relational Mapper) překládá mezi C# objekty a relačními tabulkami, abys
+nepsal SQL ručně. Klíčové pojmy:
+
+- **`DbContext`** — tvoje „relace k databázi" + brána k dotazům. Jedna třída (např.
+  `SpoorlyDbContext`), krátce žijící (na request/operaci, ne globálně).
+- **`DbSet<T>`** — kolekce entit mapovaná na tabulku: `DbSet<Activity> Activities`.
+- **Entita** — třída mapovaná na řádek. Potřebuje **klíč** (typicky `Id`).
+- **`OnModelCreating`** — fluent konfigurace mapování (vztahy, sloupce, indexy), když
+  konvence nestačí.
+- **LINQ → SQL** — `context.Activities.Where(a => a.Distance > 10000)` EF přeloží na SQL
+  a pošle do DB. Počítá **databáze**, ne appka (tzv. *pushdown*).
+- **Migrace** — verzované změny schématu (viz [3.10](#310-migrace-workflow)).
+
+## 3.5 Jak EF Core mluví s PostGIS
+
+Tři balíčky (zdůvodnění, proč zrovna ony — jinak preferujeme std. knihovnu):
+
+- **`Npgsql.EntityFrameworkCore.PostgreSQL`** — EF Core provider pro Postgres (překladač
+  LINQ→SQL mluvící „postgresově"). Bez něj EF Postgres neumí.
+- **`Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite`** — přimíchá podporu
+  prostorových typů; zapneš přes `o => o.UseNetTopologySuite()`.
+- **`NetTopologySuite`** (NTS) — .NET port knihovny JTS; dává ti C# typy `Point`,
+  `LineString`, `Geometry`. **Tohle jsou typy, které v entitě použiješ** místo dvojice `double`.
+
+Napojení (jen náčrt, detaily jsou tvoje úloha):
+
+```csharp
+options.UseNpgsql(connectionString, o => o.UseNetTopologySuite());
+```
+
+## 3.6 Klíčové rozhodnutí: jak uložit trasu
+
+Tohle je **srdce kapitoly** a ryze GIS rozhodnutí — ne detail. Máš stovky až statisíce
+bodů na aktivitu (velký soubor měl 34 288). Jak je uložit?
+
+- **A) Normalizovaně (relačně).** Tabulky `Activity`, `Track`, `TrackSegment` a `TrackPoint`
+  jako *řádky* (`lat`, `lon`, `ele`, `time`). Milion řádků bodů. Klasické, čitelné, ale
+  těžké na objem a geoprostorově „hloupé" (databáze nevidí trasu jako čáru).
+- **B) Geometry-centric (GIS způsob).** Každý segment/trasu ulož jako **jednu geometrii**
+  `LINESTRING` (viz [3.7](#37-linestring-zm)). Jeden řádek = jedna čára. PostGIS pak umí
+  `ST_Length`, prostorové dotazy, GiST index. Kompaktní a mocné.
+- **C) Hybrid.** Metadata + souhrnné metriky relačně, samotná geometrie trasy jako
+  `LINESTRING`. V praxi nejčastější.
+
+**Doporučení k promyšlení:** pro GIS appku je **B/C správný směr** — jde o to naučit se
+myslet „geometrie", ne „tabulka čísel". Ale je to tvoje volba a tvoje doména; ptám se na
+tvou preferenci, nerozhoduju za tebe (přesnost/dotazovatelnost vs. jednoduchost mapování).
+
+## 3.7 `LINESTRING ZM` — geometrie, co nese výšku i čas
+
+`LINESTRING` je lomená čára = uspořádaná sekvence bodů. PostGIS umí ke každému vrcholu
+přidat dvě extra dimenze:
+
+- **Z** — třetí souřadnice, u tebe přirozeně **nadmořská výška** (`Elevation`).
+- **M** — „measure", libovolná hodnota na vrcholu; u tracků se hodí **čas** nebo naběhaná
+  vzdálenost.
+
+Takže celý GPX segment se dá vyjádřit jako jeden `LINESTRING ZM`, kde každý vrchol drží
+`(lon, lat, ele, time)`. To je elegantní a formátově čisté — ale rozmysli, jak M
+(čas) reprezentovat (např. Unix epoch), a co s body **bez** výšky/času (Z/M pak nejsou
+konzistentní přes celou čáru → možná fallback nebo NaN handling).
+
+## 3.8 Records jako entity — kde to skřípe
+
+Tvůj model je immutable `record`y (`init`-only). EF Core s tím **umí pracovat**, ale jsou tři tření:
+
+1. **Identita vs hodnota.** EF sleduje entity podle **klíče** (identita řádku), ale
+   `record` má **hodnotovou rovnost** (dva různé řádky se stejnými hodnotami jsou si `==`).
+   To může plést změnové sledování. Entity proto často bývají spíš `class` s `Id`,
+   zatímco `record` se hodí na hodnotové objekty bez identity.
+2. **Klíč.** Doména `TrackPoint` žádné `Id` nemá — pro DB ho typicky potřebuje. Buď ho
+   přidáš, nebo body neukládáš jako entity, ale jako součást geometrie (viz [3.6](#36-klíčové-rozhodnutí-jak-uložit-trasu) B).
+3. **Materializace.** EF entitu vytváří a plní; `init`-only a `required` s tím dnes jdou
+   dohromady, ale bezparametrický konstruktor / navigační vlastnosti občas potřebují úlevu.
+
+**Designová otázka:** oddělit **doménové** `record`y (čisté, jak je máš) od **DB entit**
+(zvlášť, s `Id`, mapované) a mezi nimi mapovat? Čistší, ale víc kódu. Nebo mapovat doménu
+přímo? Rychlejší, ale DB detaily prosáknou do domény. Klasický tradeoff — probereme.
+
+## 3.9 Kdo počítá vzdálenost: doména vs PostGIS
+
+Zajímavý střet s Fází 1: **vzdálenost teď počítá tvůj `Distance`** (C#). PostGIS to ale
+umí taky (`ST_Length` nad `geography`). Kdo má být zdrojem pravdy?
+
+- **Doména (C#)** — přenositelné, testovatelné bez DB, plná kontrola nad vzorcem
+  (Equirectangular/Slope). Ale počítá appka a nad DB daty musíš data nejdřív vytáhnout.
+- **PostGIS pushdown** — počítá databáze, blízko dat, rychlé přes miliony bodů, ale vzorec
+  je „na PostGIS" a vyžaduje DB k testu.
+
+Neexistuje jedna správná odpověď — často se **souhrn uloží** (spočítáš při importu doménou)
+a **prostorové dotazy** (co je poblíž) se dělají v PostGIS. Tvoje doména, tvoje volba;
+zajímá mě tvůj názor geodeta na přesnost `ST_Length(geography)` vs tvůj `Slope`.
+
+## 3.10 Migrace: workflow
+
+Migrace = **verzované změny schématu** jako kód (v gitu), ne ručně klikané `CREATE TABLE`.
+Potřebuješ balíček `Microsoft.EntityFrameworkCore.Design` a nástroj `dotnet-ef`. Cyklus:
+
+```bash
+dotnet tool install --global dotnet-ef        # jednou
+dotnet ef migrations add InitialCreate         # vygeneruje migraci z modelu
+dotnet ef database update                      # aplikuje ji na DB
+```
+
+Každá změna modelu = nová migrace. Migrace jsou **verzované a přenositelné** — kdokoli
+z čistého repa dostane `dotnet ef database update` stejné schéma. Nikdy needituj už
+aplikovanou migraci; přidej novou.
+
+## 3.11 Postgres + PostGIS v Dockeru
+
+Nebudeš instalovat Postgres do systému — spustíš ho v kontejneru. Použije se image
+**`postgis/postgis`** (Postgres s už zapnutým PostGIS), typicky přes `docker-compose.yml`
+(služba, port 5432, volume na data, heslo z proměnné prostředí). Connection string pak
+míří na `localhost:5432`.
+
+**Bezpečnost:** heslo do DB **nepatří do gitu** — proměnná prostředí nebo user-secrets
+(`dotnet user-secrets`), ne `appsettings.json` v repu. Tohle si pohlídej od začátku.
+
+## 3.12 `DbContext`: životní cyklus, async, tracking
+
+- **Životnost:** `DbContext` je **krátkodobý a není thread-safe**. Jedna instance na
+  operaci/request, pak zahodit (`using` / DI scope). Nedrž ho globálně.
+- **Async:** DB je I/O → používej `SaveChangesAsync`, `ToListAsync`, `FirstOrDefaultAsync`.
+  Nevlákníš tím vlákno na čekání na disk/síť.
+- **Tracking:** EF defaultně **sleduje** načtené entity (aby uměl uložit změny). Když jen
+  čteš pro zobrazení, `AsNoTracking()` je rychlejší a šetří paměť.
+
+## 3.13 Repository / Unit of Work — potřebuješ to teď?
+
+Uslyšíš, že „nad EF Core patří repository pattern". **Ve tvé fázi zpravidla ne** — `DbContext`
+*už je* Unit of Work a `DbSet` *už je* repository. Přidat další vrstvu „pro čistotu" je
+často ta předčasná abstrakce z [2.1](#21-kam-tahle-kapitola-míří). Přijde, až budeš mít
+konkrétní důvod (skrýt EF za doménovou hranici, víc úložišť). Zatím volej `DbContext` přímo.
+
+## 3.14 Designové otázky (rozhodneš ty)
+
+Jádro fáze — rozmysli **před** kódem:
+
+1. **Model uložení** ([3.6](#36-klíčové-rozhodnutí-jak-uložit-trasu)): normalizovaně vs
+   `LINESTRING` vs hybrid? Zásadní, ovlivní všechno.
+2. **`geometry` vs `geography`** ([3.3](#33-postgis-geoprostorová-vrstva)) a co s tvým
+   `Distance` ([3.9](#39-kdo-počítá-vzdálenost-doména-vs-postgis)).
+3. **Doménové `record`y vs oddělené DB entity** ([3.8](#38-records-jako-entity--kde-to-skřípe)).
+4. **Kam s `SpoorlyDbContext`** — nový projekt `Spoorly.Data`/`Spoorly.Infrastructure`, ať
+   `Core` zůstane bez závislosti na EF? (Doporučuju ano — chrání čistotu domény.)
+5. **Z/M v geometrii** ([3.7](#37-linestring-zm)) — reprezentace času, body bez výšky.
+
+## 3.15 Jak to aplikovat na Spoorly
+
+**Co** vzniká; **jak** píšeš ty, já reviduju a ptám se na *proč*. Postupně:
+
+1. Rozhodni otázky z [3.14](#314-designové-otázky-rozhodneš-ty) — hlavně model uložení a
+   kam s `DbContext`.
+2. Rozjeď **PostGIS v Dockeru** (`docker-compose.yml`, image `postgis/postgis`) a ověř
+   připojení (např. `psql` nebo `SELECT postgis_version();`).
+3. Přidej balíčky (Npgsql EF provider + NetTopologySuite) do nového datového projektu.
+4. Napiš `SpoorlyDbContext` + entitu/y podle zvoleného modelu; `UseNetTopologySuite()`.
+5. První **migrace** (`InitialCreate`) → `database update`; zkontroluj schéma v DB.
+6. **Import**: z načtené `Activity` (z GPX) postav geometrii/entity a ulož (`SaveChangesAsync`).
+7. **Čtení**: vytáhni aktivitu zpět a ověř, že sedí s tím, co jsi uložil (kolečko round-trip).
+8. Test: mapování a round-trip. (Integrační test proti DB — nová kategorie; probereme, jak
+   na to bez zpomalení celé sady, např. Testcontainers.)
+
+## Další čtení (nepovinné prohloubení)
+
+- Npgsql EF Core provider — `www.npgsql.org/efcore/` (hlavně sekce *Spatial/NetTopologySuite*).
+- PostGIS dokumentace — `postgis.net/documentation/` a „Introduction to PostGIS" workshop.
+- EF Core — `learn.microsoft.com/ef/core/` (Migrations, DbContext lifetime, Spatial data).
+- NetTopologySuite — `nettopologysuite.github.io/NetTopologySuite/`.
+- `geometry` vs `geography` — PostGIS manuál, kapitola „When to use Geography…".
+- Testcontainers pro .NET — `dotnet.testcontainers.org` (integrační testy proti reálné DB).

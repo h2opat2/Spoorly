@@ -26,6 +26,48 @@ Pole, ke kterému není co říct, vynech.
 
 ---
 
+## [2026-07-09] — Skripta kap. 3: EF Core + PostgreSQL/PostGIS (start Fáze 3)
+
+**Fáze:** 3 — perzistence
+- **Uděláno:** README (CZ [README.md](../README.md) + EN [README.en.md](../README.en.md), přepínač jazyka). Skripta **kap. 3 — Perzistence: EF Core + PostgreSQL/PostGIS** (podrobná, na Honzovu žádost — kariérně důležité pro GIS): PostGIS (geometry vs geography, SRID 4326, GiST, pořadí X=lon/Y=lat), EF Core (DbContext, migrace, LINQ→SQL), Npgsql + NetTopologySuite, model uložení (normalizovaně vs LINESTRING ZM vs hybrid), records vs DB entity, doména vs PostGIS pushdown, Docker `postgis/postgis`.
+- **Rozhodnutí:** další fáze = perzistence (EF Core + PostGIS), Honza se těší; licenci zatím neřešíme.
+- **Další krok:** rozhodnout designové otázky (3.14) — hlavně **model uložení** (LINESTRING vs relačně) a **kam s `DbContext`** (nový projekt `Spoorly.Data`, ať `Core` zůstane bez EF). Pak Docker + PostGIS, balíčky, `SpoorlyDbContext`, první migrace, import/round-trip.
+- **Commity:** —
+
+---
+
+## [2026-07-09] — Fáze 2: strategy pattern hotový (IActivityParser + factory)
+
+**Fáze:** 2 — OOP
+- **Uděláno:** `IActivityParser` (kontrakt přes `Stream`, v `Io`), `GpxReader : IActivityParser` (instanční `Parse`, `XDocument.Load(stream)`), model přejmenován `Gpx` → `Activity`, `ActivityParserFactory.ForFile` (výběr dle přípony, `NotSupportedException` pro neznámou). Console jede přes rozhraní + factory (`File.OpenRead` + `using`). Testy factory + `GpxReader` z `MemoryStream` → 19/19.
+- **Rozhodnutí:** vstup `Stream` (ne path) → testovatelnost bez disku; výběr parseru přes `switch` na příponě (registry zbytečný pro 1 formát); return typ factory = `IActivityParser` (drží abstrakci).
+- **Naučeno:** `static` v rozhraní zabíjí polymorfismus (strategy = instanční metody); `Stream` je `IDisposable` → `using`; špatně umístěný typ „prosakuje" importy (přesun `IActivityParser` do `Io` smazal `using Model` ve factory).
+- **Další krok:** fake `IActivityParser` do konzumenta až vznikne `ActivityService`; případně `TcxReader` jako druhý formát (ověří smysl factory). Pak dál po learning path (EF Core / API).
+- **Commity:** —
+
+---
+
+## [2026-07-08] — Dokončení testů Calculatoru + start Fáze 2 (OOP)
+
+**Fáze:** přechod Fáze 1 → Fáze 2 (OOP)
+- **Uděláno:** `TrackStatisticsCalculatorTests` (empty, sčítání úseků přes stub, gain/loss, min/max, duration, chybějící výška, mezera mezi segmenty) — 13/13 zelených, testovací vsuvka uzavřena. Skripta kap. **2. OOP: rozhraní a strategy pattern (`IActivityParser`)**.
+- **Rozhodnutí:** další kapitola = Fáze 2 OOP (schovat `GpxReader` za `IActivityParser`). Testy dál píše Claude (Honzu nebavily), učební energie jde na doménu/C#.
+- **Naučeno:** strategy pattern = zaměnitelné algoritmy za rozhraním; `Func<>` v `Slope`/`Compute` už je jeho lehká forma. YAGNI: s jedním formátem je abstrakce předčasná — zavádíme ji vědomě kvůli učení + TCX/FIT.
+- **Další krok:** rozhodnout designové otázky (2.6): návratový typ (`Gpx` → `Activity`?), vstup (`path` vs `Stream`); pak `GpxParser : IActivityParser` + úprava Console.
+- **Commity:** —
+
+---
+
+## [2026-07-05] — Testy Distance.Slope
+
+**Fáze:** Testování (Fáze A) — v rámci Fáze 1
+- **Uděláno:** `DistanceTests` pro `Slope` — stubnutá horizontální složka (izolace Pythagora) + fallback při chybějícím `Elevation` u jednoho/obou bodů.
+- **Naučeno:** injektovat horizontální vzdálenost přes stub → test čistě ověří výškovou složku, nezávisle na 2D vzorci.
+- **Další krok:** testy `TrackStatisticsCalculator` (empty, gain/loss, min/max, duration, chybějící elevation, merge segmentů).
+- **Commity:** `4cf26e6`
+
+---
+
 ## [2026-07-05] — Zahájení fáze testování: xUnit + první testy Distance
 
 **Fáze:** Testování (Fáze A) — v rámci Fáze 1
@@ -77,38 +119,6 @@ Repo je teď kanonický zdroj kontextu; Claude Code i Cowork míří na stejnou 
 - Zvážit, jestli u vzdálenosti zůstat u Equirectangular, nebo přidat Haversine/Vincenty
   pro delší úseky (Honzova doména — přesnost vs. jednoduchost).
 **Commity:** —
-
----
-
-## [2026-07-09] — Fáze 2: strategy pattern hotový (IActivityParser + factory)
-
-**Fáze:** 2 — OOP
-- **Uděláno:** `IActivityParser` (kontrakt přes `Stream`, v `Io`), `GpxReader : IActivityParser` (instanční `Parse`, `XDocument.Load(stream)`), model přejmenován `Gpx` → `Activity`, `ActivityParserFactory.ForFile` (výběr dle přípony, `NotSupportedException` pro neznámou). Console jede přes rozhraní + factory (`File.OpenRead` + `using`). Testy factory + `GpxReader` z `MemoryStream` → 19/19.
-- **Rozhodnutí:** vstup `Stream` (ne path) → testovatelnost bez disku; výběr parseru přes `switch` na příponě (registry zbytečný pro 1 formát); return typ factory = `IActivityParser` (drží abstrakci).
-- **Naučeno:** `static` v rozhraní zabíjí polymorfismus (strategy = instanční metody); `Stream` je `IDisposable` → `using`; špatně umístěný typ „prosakuje" importy (přesun `IActivityParser` do `Io` smazal `using Model` ve factory).
-- **Další krok:** fake `IActivityParser` do konzumenta až vznikne `ActivityService`; případně `TcxReader` jako druhý formát (ověří smysl factory). Pak dál po learning path (EF Core / API).
-- **Commity:** —
-
----
-
-## [2026-07-08] — Dokončení testů Calculatoru + start Fáze 2 (OOP)
-
-**Fáze:** přechod Fáze 1 → Fáze 2 (OOP)
-- **Uděláno:** `TrackStatisticsCalculatorTests` (empty, sčítání úseků přes stub, gain/loss, min/max, duration, chybějící výška, mezera mezi segmenty) — 13/13 zelených, testovací vsuvka uzavřena. Skripta kap. **2. OOP: rozhraní a strategy pattern (`IActivityParser`)**.
-- **Rozhodnutí:** další kapitola = Fáze 2 OOP (schovat `GpxReader` za `IActivityParser`). Testy dál píše Claude (Honzu nebavily), učební energie jde na doménu/C#.
-- **Naučeno:** strategy pattern = zaměnitelné algoritmy za rozhraním; `Func<>` v `Slope`/`Compute` už je jeho lehká forma. YAGNI: s jedním formátem je abstrakce předčasná — zavádíme ji vědomě kvůli učení + TCX/FIT.
-- **Další krok:** rozhodnout designové otázky (2.6): návratový typ (`Gpx` → `Activity`?), vstup (`path` vs `Stream`); pak `GpxParser : IActivityParser` + úprava Console.
-- **Commity:** —
-
----
-
-## [2026-07-05] — Testy Distance.Slope
-
-**Fáze:** Testování (Fáze A) — v rámci Fáze 1
-- **Uděláno:** `DistanceTests` pro `Slope` — stubnutá horizontální složka (izolace Pythagora) + fallback při chybějícím `Elevation` u jednoho/obou bodů.
-- **Naučeno:** injektovat horizontální vzdálenost přes stub → test čistě ověří výškovou složku, nezávisle na 2D vzorci.
-- **Další krok:** testy `TrackStatisticsCalculator` (empty, gain/loss, min/max, duration, chybějící elevation, merge segmentů).
-- **Commity:** `4cf26e6`
 
 ---
 
