@@ -4,14 +4,14 @@ using Spoorly.Core.Model;
 
 namespace Spoorly.Core.Io;
 
-public static class GpxReader
+public class GpxReader : IActivityParser
 {
     private static readonly XNamespace Ns = "http://www.topografix.com/GPX/1/1";
 
-    public static Gpx Load(string path)
+    public Activity Parse(Stream stream)
     {
-        var root = XDocument.Load(path).Root!;
-        return new Gpx
+        var root = XDocument.Load(stream).Root!;
+        return new Activity
         {
             Creator = root.Attribute("creator")?.Value,
             Tracks = root.Elements(Ns + "trk").Select(ParseTrack).ToList(),

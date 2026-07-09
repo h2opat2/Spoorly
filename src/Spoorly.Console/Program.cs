@@ -5,28 +5,31 @@ using Spoorly.Core.Io;
 using Spoorly.Core.Model;
 
 // --- malý soubor: dvojí měření (studený vs. teplý běh) ---
-Gpx small = Load("../../data/test1.gpx", "1. načtení (studené)");
+Spoorly.Core.Model.Activity smallGpx = Load("../../data/test1.gpx", "1. načtení (studené)");
 Load("../../data/test1.gpx", "2. načtení (teplé)");
-PrintTracks(small);
+PrintTracks(smallGpx);
 
 // --- velký, reálný soubor ---
-Gpx big = Load("../../data/etapa01_den02.gpx", "Reálný soubor");
-Console.WriteLine($"Celkem bodů: {big.Tracks.Sum(t => t.TrackSegments.Sum(s => s.Points.Count))}");
-PrintStats(big);
-PrintProfile(big.Tracks[0]);
+Spoorly.Core.Model.Activity bigGpx = Load("../../data/etapa01_den02.gpx", "Reálný soubor");
+Console.WriteLine($"Celkem bodů: {bigGpx.Tracks.Sum(t => t.TrackSegments.Sum(s => s.Points.Count))}");
+PrintStats(bigGpx);
+PrintProfile(bigGpx.Tracks[0]);
 
 // Načte soubor, změří dobu a vypíše ji. Vrací načtená data.
-static Gpx Load(string path, string label)
+Spoorly.Core.Model.Activity Load(string path, string label)
 {
     var sw = Stopwatch.StartNew();
-    var gpx = GpxReader.Load(path);
+    //var parser = new GpxReader(); // puvodni volani bez Factory
+    IActivityParser parser = ActivityParserFactory.ForFile(path);
+    using var stream = File.OpenRead(path);
+    var activity = parser.Parse(stream);
     sw.Stop();
     Console.WriteLine($"{label}: {sw.Elapsed.TotalMilliseconds:F3} ms");
-    return gpx;
+    return activity;
 }
 
 // Spočítá a vypíše statistiky trasy – rovinnou (2D) i skloněnou (3D) vzdálenost.
-static void PrintStats(Gpx gpx)
+static void PrintStats(Spoorly.Core.Model.Activity gpx)
 {
     var flat = TrackStatisticsCalculator.Compute(gpx);
     var slope = TrackStatisticsCalculator.Compute(gpx, (a, b) => Distance.Slope(a, b));
@@ -57,10 +60,10 @@ static void PrintProfile(Track track)
     }
 }
 
-static void PrintTracks(Gpx gpx)
+static void PrintTracks(Spoorly.Core.Model.Activity activity)
 {
-    Console.WriteLine($"Creator: {gpx.Creator}");
-    foreach (var track in gpx.Tracks)
+    Console.WriteLine($"Creator: {activity.Creator}");
+    foreach (var track in activity.Tracks)
     {
         Console.WriteLine($"Trasa: {track.Name}");
         foreach (var segment in track.TrackSegments)

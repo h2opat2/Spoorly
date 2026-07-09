@@ -9,6 +9,7 @@ Souvisí s [DENIK.md](DENIK.md) (co jsme kdy udělali) — skripta jsou *proč a
 ## Index
 
 - [1. Testování (xUnit)](#1-testování-xunit)
+- [2. OOP: rozhraní a strategy pattern (`IActivityParser`)](#2-oop-rozhraní-a-strategy-pattern-iactivityparser)
 
 ---
 
@@ -228,3 +229,126 @@ píšeš ty, já reviduju. Od nejčistších (unit) po integrační:
 - xUnit dokumentace: `xunit.net/docs` → „Getting Started".
 - Kniha: Vladimir Khorikov — *Unit Testing Principles, Practices, and Patterns* (Manning, C#/.NET).
 - NSubstitute: `nsubstitute.github.io` (až Fáze C).
+
+---
+
+# 2. OOP: rozhraní a strategy pattern (`IActivityParser`)
+
+## 2.1 Kam tahle kapitola míří
+
+Dosud je `GpxReader` **statická třída se statickou metodou** `Load(path)`. Funguje to,
+protože formát je jen jeden (GPX). Cíl Fáze 2 je schovat konkrétní čtečku za **rozhraní**
+`IActivityParser`, aby zbytek aplikace nezávisel na tom, *jaký* formát se právě parsuje.
+
+Rovnou na férovku, protože jinak by to byl kult cargo programování: **s jediným formátem
+je tahle abstrakce technicky předčasná** (YAGNI — „you aren't gonna need it"). Kdyby šlo
+o produkt, řekl bych „nech statickou třídu, dokud nepřijde druhý formát". Tady je ale
+**cílem naučit se ten pattern** a připravit půdu pro TCX/FIT — takže ho zavedeme *vědomě*
+a s pochopením, kdy se vyplatí a kdy je to jen zbytečná vrstva. Ta upřímnost je součást
+učení: většina škody z OOP vzniká z abstrakcí přidaných „pro jistotu".
+
+## 2.2 Proč rozhraní: závislost na kontraktu, ne na implementaci
+
+Rozhraní (`interface`) je **čistý kontrakt** — seznam metod bez těla. Kdo ho používá,
+ví *co* umí, ne *jak*. To odpojuje volajícího od konkrétní třídy:
+
+```csharp
+public interface IActivityParser
+{
+    Activity Parse(string path);   // co se vrací a jak se to jmenuje = otevřená otázka, viz 2.6
+}
+```
+
+Tři věci, které tím získáš:
+
+1. **Zaměnitelnost.** `GpxParser`, `TcxParser`, `FitParser` — každý implementuje stejný
+   kontrakt. Kód, který parser používá, se nemění, když přibude formát.
+2. **Testovatelnost.** Do konzumenta můžeš podstrčit fake parser (přesně ten „test double"
+   z [1.7](#17-test-doubles--a-proč-je-teď-nepotřebuješ)) bez sahání na disk.
+3. **Explicitní hranice.** Rozhraní pojmenuje, co je „parser aktivity", a odřízne to od
+   detailů XML/XLinq.
+
+## 2.3 Strategy pattern jednou větou
+
+**Strategy** = rodina zaměnitelných algoritmů za společným rozhraním; konkrétní se vybírá
+za běhu. Tady je „algoritmus" = parser formátu, „rozhraní" = `IActivityParser`, „výběr za
+běhu" = podle přípony souboru. Nic víc v tom není — je to prostě „polymorfismus s úmyslem".
+
+Mimochodem: **už jsi jednu strategii použil.** `Func<TrackPoint, TrackPoint, double>`,
+který posíláš do `Slope` a `Compute`, je strategy pattern v lehké, funkcionální podobě —
+zaměnitelný algoritmus vzdálenosti předaný jako parametr. Rozhraní je jen jeho „těžší",
+objektová varianta pro případ, kdy strategie má víc metod nebo vlastní stav.
+
+## 2.4 `interface` vs `abstract class` — co zvolit
+
+| | `interface` | `abstract class` |
+|---|---|---|
+| Nese stav (pole)? | ne | ano |
+| Sdílená implementace? | jen `default` metody (nezneužívat) | ano, běžně |
+| Kolik jich třída může mít? | víc | jen jednu (dědičnost) |
+| Vztah | „umí tohle" (schopnost) | „je tohle" (identita/rodina) |
+
+Pro parser chceš **`interface`**: parsery nesdílejí stav ani společný základ, jen slibují
+stejnou schopnost. `abstract class` by dávala smysl, až kdyby víc parserů sdílelo netriviální
+kód (např. společné mapování na model) — a i pak se dnes spíš preferuje kompozice.
+
+## 2.5 Výběr parseru podle formátu — factory / registry
+
+Někdo musí rozhodnout „tenhle `.gpx` → `GpxParser`". Tři úrovně, od nejjednodušší:
+
+1. **`switch` na příponě** přímo v místě volání — nejlevnější, dokud jsou formáty 1–2.
+2. **Factory metoda** `IActivityParser ForFile(string path)` — schová `switch` na jedno místo.
+3. **Registry** (`IDictionary<string, IActivityParser>`) — parsery se registrují, výběr je
+   lookup. Elegantní pro plugin-styl, ale pro dva formáty přehnané.
+
+**Doporučení pro tvou fázi:** začni u (1) nebo (2). Registry je krásný, ale je to zase ta
+abstrakce navíc — přijde, až bude formátů víc, ne dřív.
+
+## 2.6 Otevřené designové otázky (rozhodneš ty)
+
+Tohle je jádro Fáze 2 — nejsou to detaily, ale volby, které utvářejí API. Rozmysli je
+**před** psaním kódu, ať víš, *proč* to děláš tak a ne jinak:
+
+1. **Návratový typ.** Dnes `GpxReader.Load` vrací `Gpx`. Ale `Gpx` je název *formátu* —
+   jako obecný výstup parseru zní divně (`TcxParser` vrací `Gpx`?!). Přejmenovat kořen
+   modelu na formátově neutrální `Activity`? To je čistší, ale sáhne to do víc míst.
+   Tvoje volba, tvoje doména — jak bys pojmenoval „jednu načtenou aktivitu"?
+2. **`Parse` vs `Load`, a co dostane na vstup.** Cesta ke souboru (`string path`), nebo
+   `Stream`? `Stream` je testovatelnější (nemusíš na disk) a univerzálnější (síť, ZIP),
+   ale trochu ukecanější u volajícího. Kompromis: rozhraní bere `Stream`, statická
+   pohodlná metoda `FromFile(path)` ho otevře.
+3. **Jak konzument získá parser?** Předá se mu hotový `IActivityParser` (dependency
+   injection v malém), nebo si ho vytáhne z factory sám? DI je čistší a testovatelnější.
+4. **Zpětná kompatibilita.** Necháš `GpxReader` jako tenkou statickou fasádu nad novým
+   `GpxParser` (ať se nerozbije `Console`), nebo přepíšeš i volající?
+
+## 2.7 Idiomatické C# k tomuhle
+
+- **Pojmenování:** rozhraní s prefixem `I` (`IActivityParser`) — konvence .NET.
+- **Implementace může zůstat `sealed`** (`public sealed class GpxParser : IActivityParser`),
+  pokud nečekáš dědění — jasnější záměr a drobná optimalizace.
+- **Statická vs instanční:** rozhraní vyžaduje instanční metody. `GpxReader` byl statický;
+  `GpxParser` bude instanční třída (bezstavová, klidně jich může být víc instancí).
+- **Primary constructor** (`public sealed class Foo(IActivityParser parser)`) je moderní,
+  stručný způsob, jak přijmout závislost přes DI.
+
+## 2.8 Jak to aplikovat na Spoorly
+
+**Co** vzniká; **jak** (tělo) píšeš ty, já reviduju a ptám se na *proč*:
+
+1. Rozhodni otevřené otázky z [2.6](#26-otevřené-designové-otázky-rozhodneš-ty) — hlavně
+   návratový typ a vstup. To ovlivní všechno další.
+2. Definuj `IActivityParser` v `Spoorly.Core/Io/` (nebo `Parsing/`).
+3. Přepiš `GpxReader` → `GpxParser : IActivityParser`. Logika parsingu se nemění, jen
+   se ze statické stane instanční a schová se za kontrakt.
+4. Zajisti výběr parseru (factory `ForFile`, zatím `switch` na příponě).
+5. Uprav `Spoorly.Console`, ať jede přes rozhraní — ověříš, že abstrakce sedí v praxi.
+6. Test: fake `IActivityParser` do konzumenta (double bez disku) + že `GpxParser` pořád
+   parsuje `data/test1.gpx` stejně jako dřív (regrese).
+
+## Další čtení (nepovinné prohloubení)
+
+- Microsoft Learn — `learn.microsoft.com/dotnet/csharp/fundamentals/types/interfaces`.
+- Refactoring Guru — Strategy pattern (jazykově neutrální, s C# příklady): `refactoring.guru/design-patterns/strategy`.
+- Kniha: Robert C. Martin — *Agile Principles, Patterns, and Practices in C#* (dependency inversion, ISP).
+- Pozor na over-engineering: Martin Fowler, „Yagni" — `martinfowler.com/bliki/Yagni.html`.

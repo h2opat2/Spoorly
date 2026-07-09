@@ -63,7 +63,7 @@ public static class TrackStatisticsCalculator
             .Aggregate(TrackStatistics.Empty, Merge);
 
     public static TrackStatistics Compute(
-        Gpx gpx,
+        Activity gpx,
         Func<TrackPoint, TrackPoint, double>? pointDistance = null)
         => gpx.Tracks
             .Select(t => Compute(t, pointDistance))
