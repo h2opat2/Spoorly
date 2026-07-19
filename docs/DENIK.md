@@ -26,6 +26,17 @@ Pole, ke kterému není co říct, vynech.
 
 ---
 
+## [2026-07-19] — PostGIS běží v Dockeru + zafixovaný návrh uložení
+
+**Fáze:** 3 — perzistence
+- **Uděláno:** `docker-compose.yml` (image `postgis/postgis:16-3.4`, volume, port 5432) + `.env` (heslo, v `.gitignore`). Docker Desktop nainstalován, DB naživo — ověřeno `PostgreSQL 16.4` + `PostGIS 3.4`, `ST_MakePoint` na reálném bodě z GPX.
+- **Rozhodnutí (návrh uložení):** geometrie = **`MULTILINESTRING ZM`**, 1 záznam na aktivitu (části = segmenty s mezerami). Metriky **spočítat při importu a uložit** pro rychlé dotazy. Vzdálenost = **2D geodetická** (`ST_Length(geography)`) **oddělená od převýšení** (Z zvlášť) — 3D délka u vteřinových vzorků nemá v terénu smysl (geodetova úvaha).
+- **Naučeno:** image vs kontejner; pojmenovaný volume = perzistence dat mimo kontejner; pořadí souřadnic **X=lon, Y=lat** naživo; heslo přes `.env` mimo git.
+- **Další krok:** .NET strana — projekt `Spoorly.Data`, balíčky Npgsql EF provider + NetTopologySuite, `SpoorlyDbContext` + entita `Activity` (`MULTILINESTRING ZM` + souhrn), první migrace. Začneme **návrhem entity/schématu**.
+- **Commity:** — (`docker-compose.yml` zatím nezacommitován)
+
+---
+
 ## [2026-07-09] — Skripta kap. 3: EF Core + PostgreSQL/PostGIS (start Fáze 3)
 
 **Fáze:** 3 — perzistence

@@ -1,0 +1,28 @@
+# PostGIS pro Spoorly — lokální vývojová databáze.
+#
+#   docker compose up -d        # nastartuje DB na pozadí
+#   docker compose down         # zastaví (data zůstanou ve volume)
+#   docker compose logs -f db   # sleduje log
+#
+# (Docker Compose v2 už nepotřebuje klíč `version:`.)
+
+services:
+  db:
+    # Postgres 16 s PŘEDINSTALOVANÝM PostGIS 3.4 — rozšíření se v databázi
+    # `spoorly` zapne samo při prvním startu, nemusíš dělat CREATE EXTENSION ručně.
+    image: postgis/postgis:16-3.4
+    container_name: spoorly-db
+    environment:
+      POSTGRES_DB: spoorly                     # DB se vytvoří při prvním startu
+      POSTGRES_USER: spoorly                   # aplikační uživatel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}  # heslo z .env (není v gitu)
+    ports:
+      - "5432:5432"                            # host:container → appka jede na localhost:5432
+    volumes:
+      - spoorly-pgdata:/var/lib/postgresql/data  # data přežijí restart i `down`
+    restart: unless-stopped
+
+# Pojmenovaný volume = perzistentní úložiště spravované Dockerem
+# (odděleno od kontejneru, takže smazání kontejneru data nesmaže).
+volumes:
+  spoorly-pgdata:
